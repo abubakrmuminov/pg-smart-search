@@ -1,0 +1,40 @@
+{
+  "name": "pg-smart-search",
+  "version": "1.0.0",
+  "description": "Powerful fuzzy search engine for PostgreSQL with layout correction and dynamic thresholds",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "example": "ts-node examples/basic-usage.ts",
+    "init": "ts-node src/cli/init.ts",
+    "bench": "ts-node src/cli/bench.ts"
+  },
+  "keywords": [
+    "postgres",
+    "trigram",
+    "fuzzy-search",
+    "pg_trgm",
+    "postgresql",
+    "search-engine",
+    "layout-correction"
+  ],
+  "author": "Mumin Developer",
+  "license": "MIT",
+  "dependencies": {
+    "enquirer": "^2.4.1",
+    "ioredis": "^5.3.0",
+    "pg": "^8.11.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.19.33",
+    "@types/pg": "^8.6.6",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "ts-node": "^10.9.1",
+    "typescript": "^5.0.0"
+  }
+}
