@@ -1,11 +1,21 @@
 {
   "name": "pg-smart-search",
   "version": "1.0.0",
-  "description": "Powerful fuzzy search engine for PostgreSQL with layout correction and dynamic thresholds",
+  "description": "High-performance fuzzy search SDK for PostgreSQL with Parallel Search and Zombie Query Prevention",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "pg-smart-init": "dist/cli/init.js",
+    "pg-smart-bench": "dist/cli/bench.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "test": "jest",
     "example": "ts-node examples/basic-usage.ts",
     "init": "ts-node src/cli/init.ts",
@@ -18,10 +28,20 @@
     "pg_trgm",
     "postgresql",
     "search-engine",
-    "layout-correction"
+    "layout-correction",
+    "parallel-search",
+    "abort-signal"
   ],
-  "author": "Mumin Developer",
+  "author": "Abubakr Muminov",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abubakrmuminov/pg-smart-search.git"
+  },
+  "bugs": {
+    "url": "https://github.com/abubakrmuminov/pg-smart-search/issues"
+  },
+  "homepage": "https://github.com/abubakrmuminov/pg-smart-search#readme",
   "dependencies": {
     "enquirer": "^2.4.1",
     "ioredis": "^5.3.0",

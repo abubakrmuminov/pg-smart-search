@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import pc from 'picocolors';
 import { SearchBenchmark } from '../core/benchmark';
 import { TrigramSearchEngine } from '../engines/trigram-engine';
