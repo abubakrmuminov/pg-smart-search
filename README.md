@@ -11,6 +11,8 @@ A high-performance Search SDK for PostgreSQL that provides speed and relevance c
 - 🗄️ **Professional Caching**: Built-in Memory and Redis providers with configurable TTL.
 - 🏆 **Ranking & Relevance**: Professional BM25-style ranking using `ts_rank_cd`.
 - 🤖 **Semantic Vector Search**: Integrated support for OpenAI and Google Gemini embeddings via `pgvector`.
+- 🛡️ **Enterprise Security (v1.1+)**: Parameterized queries, strict `SqlSanitizer` whitelist for identifiers, and injection-safe filter keys.
+- 🏥 **Reliability System (v1.1+)**: Built-in `health()` checks, OOM protections (`MAX_ROWS`), and automated exponential backoff for AI APIs.
 - 📊 **Built-in Benchmarking**: Real-time performance measurement tool included.
 
 ## 🚀 Performance (Elite Tier)
@@ -20,7 +22,8 @@ A high-performance Search SDK for PostgreSQL that provides speed and relevance c
 | **Average Latency (Hit)**    | **~10.9ms**               |
 | **p99 Latency (Worst Case)** | **~62.1ms**               |
 | **Throughput**               | **~90 req/sec**           |
-*measured on laptop, dedicated server results will vary
+
+\*measured on laptop, dedicated server results will vary
 
 ## 📊 Search Tiers Comparison
 
