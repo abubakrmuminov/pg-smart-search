@@ -1,5 +1,6 @@
 export * from './core/query-processor';
 export * from './core/threshold-calculator';
+export * from './core/sql-sanitizer';
 export * from './adapters/base-adapter';
 export * from './engines/trigram-engine';
 export * from './providers/vector-provider';

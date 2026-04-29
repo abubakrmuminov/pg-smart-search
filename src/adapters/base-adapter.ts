@@ -1,4 +1,11 @@
-export interface SearchResult<T = any> {
+/** Metadata attached to a search result (e.g. layout correction info) */
+export type SearchMetadata = Record<string, unknown>;
+
+/**
+ * Paginated search result returned by all search strategies.
+ * @template T - The shape of each result row
+ */
+export interface SearchResult<T = Record<string, unknown>> {
     data: T[];
     pagination: {
         page: number;
@@ -8,22 +15,45 @@ export interface SearchResult<T = any> {
         hasNext: boolean;
         hasPrev: boolean;
     };
-    metadata?: any;
+    metadata?: SearchMetadata;
 }
 
+/**
+ * DatabaseAdapter — abstraction layer over any PostgreSQL client.
+ * Implement this interface for your ORM/client of choice (pg, Prisma, Drizzle, Knex, etc.)
+ */
 export interface DatabaseAdapter {
     /**
-     * Executes a raw SQL query and returns results
+     * Executes a parameterized SQL query and returns result rows.
+     * @param sql - The SQL query string (may contain $1, $2, ... placeholders)
+     * @param params - Ordered parameter values for the placeholders
+     * @param options - Optional AbortSignal for query cancellation
      */
-    query<T = any>(sql: string, params?: any[], options?: { signal?: AbortSignal }): Promise<T[]>;
-    
+    query<T = Record<string, unknown>>(
+        sql: string,
+        params?: unknown[],
+        options?: { signal?: AbortSignal },
+    ): Promise<T[]>;
+
     /**
-     * Executes a raw SQL statement (no return)
+     * Executes a parameterized SQL statement without returning rows.
+     * @param sql - The SQL statement
+     * @param params - Ordered parameter values
+     * @param options - Optional AbortSignal for query cancellation
      */
-    execute(sql: string, params?: any[], options?: { signal?: AbortSignal }): Promise<void>;
-    
+    execute(
+        sql: string,
+        params?: unknown[],
+        options?: { signal?: AbortSignal },
+    ): Promise<void>;
+
     /**
-     * Wraps multiple operations in a transaction
+     * Wraps multiple operations in a single database transaction.
+     * @param callback - Function that receives a transaction-scoped adapter
+     * @param options - Optional AbortSignal for transaction cancellation
      */
-    transaction<T>(callback: (adapter: DatabaseAdapter) => Promise<T>, options?: { signal?: AbortSignal }): Promise<T>;
+    transaction<T>(
+        callback: (adapter: DatabaseAdapter) => Promise<T>,
+        options?: { signal?: AbortSignal },
+    ): Promise<T>;
 }
