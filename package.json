@@ -1,6 +1,6 @@
 {
   "name": "pg-smart-search",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "High-performance fuzzy search SDK for PostgreSQL with Parallel Search and Zombie Query Prevention",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
