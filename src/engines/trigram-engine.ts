@@ -61,6 +61,8 @@ export interface SearchOptions {
     page?: number;
     limit?: number;
     filters?: Record<string, unknown>;
+    /** Optional cursor (last seen ID) for keyset pagination (bypasses OFFSET) */
+    cursor?: unknown;
     /** External signal to cancel the search */
     abortSignal?: AbortSignal;
 }
@@ -77,6 +79,8 @@ export interface HealthStatus {
 const MAX_ROWS = 10_000;
 
 export class TrigramSearchEngine {
+    private inFlightRequests = new Map<string, Promise<SearchResult<any>>>();
+
     constructor(
         private adapter: DatabaseAdapter,
         private config: TrigramEngineConfig
@@ -152,60 +156,78 @@ export class TrigramSearchEngine {
             }
         }
 
-        let results: SearchResult<T>;
-        let strategyUsed: string;
+        // --- In-Flight Deduplication & Execution Block (#17) ---
+        let promise = this.inFlightRequests.get(cacheKey);
+        
+        if (!promise) {
+            promise = (async () => {
+                let results: SearchResult<T>;
+                let strategyUsed: string;
 
-        try {
-            // Tier-based routing
-            if (this.config.tier === SearchTier.LITE) {
-                strategyUsed = 'LITE';
-                results = await new LiteStrategy(this.adapter, this.config).search<T>(normalized, { ...options, page, limit });
-            } else if (this.config.tier === SearchTier.ADVANCED) {
-                strategyUsed = 'ADVANCED';
-                results = await new AdvancedStrategy(this.adapter, this.config).search<T>(normalized, { ...options, page, limit });
-            } else if (this.config.tier === SearchTier.VECTOR) {
-                strategyUsed = 'VECTOR';
-                results = await new VectorStrategy(this.adapter, this.config).search<T>(normalized, { ...options, page, limit });
-            } else {
-                // --- Hybrid Parallel Fast-Track Logic (Zombie Prevention) ---
-                strategyUsed = 'STANDARD+FTS';
-                results = await this.hybridSearch<T>(normalized, { ...options, page, limit }, language);
-            }
-        } catch (err: unknown) {
-            const error = err as Error;
-            if (error.name === 'AbortError' || error.message === 'AbortError') {
-                return this.emptyResult(page, limit) as unknown as SearchResult<T>;
-            }
-            this.config.logger?.error('search failed', { error: String(err), tier: this.config.tier });
-            throw err;
-        }
+                try {
+                    // Tier-based routing
+                    if (this.config.tier === SearchTier.LITE) {
+                        strategyUsed = 'LITE';
+                        results = await new LiteStrategy(this.adapter, this.config).search<T>(normalized, { ...options, page, limit });
+                    } else if (this.config.tier === SearchTier.ADVANCED) {
+                        strategyUsed = 'ADVANCED';
+                        results = await new AdvancedStrategy(this.adapter, this.config).search<T>(normalized, { ...options, page, limit });
+                    } else if (this.config.tier === SearchTier.VECTOR) {
+                        strategyUsed = 'VECTOR';
+                        results = await new VectorStrategy(this.adapter, this.config).search<T>(normalized, { ...options, page, limit });
+                    } else {
+                        // --- Hybrid Parallel Fast-Track Logic (Zombie Prevention) ---
+                        strategyUsed = 'STANDARD+FTS';
+                        results = await this.hybridSearch<T>(normalized, { ...options, page, limit }, language);
+                    }
+                } catch (err: unknown) {
+                    const error = err as Error;
+                    if (error.name === 'AbortError' || error.message === 'AbortError') {
+                        return this.emptyResult(page, limit) as unknown as SearchResult<T>;
+                    }
+                    this.config.logger?.error('search failed', { error: String(err), tier: this.config.tier });
+                    throw err;
+                }
 
-        // --- Max rows guard (#22) ---
-        if (results.pagination.total > MAX_ROWS) {
-            this.config.logger?.warn('result set exceeds MAX_ROWS', {
-                total: results.pagination.total,
-                MAX_ROWS,
+                // --- Max rows guard (#22) ---
+                if (results.pagination.total > MAX_ROWS) {
+                    this.config.logger?.warn('result set exceeds MAX_ROWS', {
+                        total: results.pagination.total,
+                        MAX_ROWS,
+                    });
+                }
+
+                const elapsed = Date.now() - startTime;
+                this.config.logger?.info('search completed', {
+                    strategyUsed,
+                    elapsed,
+                    total: results.pagination.total,
+                    cacheHit: false,
+                });
+
+                // --- Cache Write ---
+                if (this.config.cacheProvider && results.pagination.total > 0) {
+                    try {
+                        await this.config.cacheProvider.set(cacheKey, results, this.config.defaultTTL);
+                    } catch (err) {
+                        this.config.logger?.warn('cache set failed', { error: String(err) });
+                    }
+                }
+
+                return results;
+            })();
+            
+            // Store the inflight promise and remove it when it finishes
+            this.inFlightRequests.set(cacheKey, promise);
+            promise.catch(() => {}).finally(() => {
+                // Remove only if it's the same promise instance (prevents deleting new concurrent identical queries)
+                if (this.inFlightRequests.get(cacheKey) === promise) {
+                    this.inFlightRequests.delete(cacheKey);
+                }
             });
         }
 
-        const elapsed = Date.now() - startTime;
-        this.config.logger?.info('search completed', {
-            strategyUsed,
-            elapsed,
-            total: results.pagination.total,
-            cacheHit: false,
-        });
-
-        // --- Cache Write ---
-        if (this.config.cacheProvider && results.pagination.total > 0) {
-            try {
-                await this.config.cacheProvider.set(cacheKey, results, this.config.defaultTTL);
-            } catch (err) {
-                this.config.logger?.warn('cache set failed', { error: String(err) });
-            }
-        }
-
-        return results;
+        return promise as unknown as Promise<SearchResult<T>>;
     }
 
     /**
@@ -268,7 +290,7 @@ export class TrigramSearchEngine {
      */
     private async standardSearch<T>(query: string, options: SearchOptions): Promise<SearchResult<T>> {
         const { page = 1, limit = 20, filters = {} } = options;
-        const skip = (page - 1) * limit;
+        const skip = options.cursor ? 0 : (page - 1) * limit;
 
         const params: unknown[] = [query];
         let paramIdx = 2;
@@ -292,13 +314,22 @@ export class TrigramSearchEngine {
             paramIdx++;
         }
 
-        const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
         const table = SqlSanitizer.quoteIdentifier(this.config.tableName, 'tableName');
+        const idCol = SqlSanitizer.quoteIdentifier(this.config.idColumn || 'id', 'idColumn');
+
+        if (options.cursor) {
+            whereClauses.push(`${idCol} > $${paramIdx}`);
+            params.push(options.cursor);
+            paramIdx++;
+        }
+
+        const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
         const sql = `
             SELECT *, COUNT(*) OVER() as total_count 
             FROM ${table}
             ${where}
+            ORDER BY ${idCol} ASC
             LIMIT ${limit} OFFSET ${skip}
         `;
 

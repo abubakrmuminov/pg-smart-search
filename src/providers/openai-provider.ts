@@ -1,25 +1,6 @@
 import { VectorProvider } from './vector-provider';
-
-/** Shared exponential backoff retry helper for API calls */
-async function withRetry<T>(
-    fn: () => Promise<T>,
-    maxAttempts = 3,
-    baseDelayMs = 500,
-): Promise<T> {
-    let lastError: unknown;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-            return await fn();
-        } catch (err: unknown) {
-            lastError = err;
-            if (attempt < maxAttempts) {
-                const delay = baseDelayMs * Math.pow(2, attempt - 1);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-    }
-    throw lastError;
-}
+import { withApiReliability } from '../core/api-utils';
+import PQueue from 'p-queue';
 
 /** OpenAI Embeddings API response shape */
 interface OpenAIEmbeddingResponse {
@@ -31,6 +12,8 @@ interface OpenAIEmbeddingResponse {
  * Automatically retries transient failures with exponential backoff.
  */
 export class OpenAIProvider implements VectorProvider {
+    private queue: PQueue;
+
     constructor(
         private apiKey: string,
         private model = 'text-embedding-3-small',
@@ -40,6 +23,9 @@ export class OpenAIProvider implements VectorProvider {
         if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
             throw new Error('OpenAIProvider: apiKey must be a non-empty string');
         }
+        
+        // Ensure max 50 concurrent requests to OpenAI
+        this.queue = new PQueue({ concurrency: 50 });
     }
 
     /**
@@ -50,7 +36,7 @@ export class OpenAIProvider implements VectorProvider {
      * @returns Array of floats representing the embedding vector
      */
     async generateEmbedding(text: string): Promise<number[]> {
-        return withRetry(async () => {
+        return withApiReliability(async () => {
             const response = await fetch('https://api.openai.com/v1/embeddings', {
                 method: 'POST',
                 headers: {
@@ -67,7 +53,11 @@ export class OpenAIProvider implements VectorProvider {
 
             const result = await response.json() as OpenAIEmbeddingResponse;
             return result.data[0].embedding;
-        }, this.maxRetries);
+        }, {
+            maxAttempts: this.maxRetries,
+            timeoutMs: 10000,
+            queue: this.queue,
+        });
     }
 
     /** Returns the embedding dimension for the configured model */

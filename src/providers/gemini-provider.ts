@@ -1,25 +1,6 @@
 import { VectorProvider } from './vector-provider';
-
-/** Shared exponential backoff retry helper for API calls */
-async function withRetry<T>(
-    fn: () => Promise<T>,
-    maxAttempts = 3,
-    baseDelayMs = 500,
-): Promise<T> {
-    let lastError: unknown;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-            return await fn();
-        } catch (err: unknown) {
-            lastError = err;
-            if (attempt < maxAttempts) {
-                const delay = baseDelayMs * Math.pow(2, attempt - 1);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-    }
-    throw lastError;
-}
+import { withApiReliability } from '../core/api-utils';
+import PQueue from 'p-queue';
 
 /** Gemini Embeddings API response shape */
 interface GeminiEmbeddingResponse {
@@ -31,6 +12,8 @@ interface GeminiEmbeddingResponse {
  * Automatically retries transient failures with exponential backoff.
  */
 export class GeminiProvider implements VectorProvider {
+    private queue: PQueue;
+
     constructor(
         private apiKey: string,
         private model = 'embedding-001',
@@ -40,6 +23,9 @@ export class GeminiProvider implements VectorProvider {
         if (!apiKey || typeof apiKey !== 'string' || apiKey.trim() === '') {
             throw new Error('GeminiProvider: apiKey must be a non-empty string');
         }
+
+        // Ensure max 50 concurrent requests to Gemini
+        this.queue = new PQueue({ concurrency: 50 });
     }
 
     /**
@@ -50,7 +36,7 @@ export class GeminiProvider implements VectorProvider {
      * @returns Array of floats representing the embedding vector
      */
     async generateEmbedding(text: string): Promise<number[]> {
-        return withRetry(async () => {
+        return withApiReliability(async () => {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:embedContent?key=${this.apiKey}`;
 
             const response = await fetch(url, {
@@ -66,7 +52,11 @@ export class GeminiProvider implements VectorProvider {
 
             const result = await response.json() as GeminiEmbeddingResponse;
             return result.embedding.values;
-        }, this.maxRetries);
+        }, {
+            maxAttempts: this.maxRetries,
+            timeoutMs: 10000,
+            queue: this.queue,
+        });
     }
 
     /** Returns the embedding dimension for the configured model */

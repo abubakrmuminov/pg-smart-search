@@ -20,7 +20,7 @@ export class LiteStrategy {
      */
     async search<T>(normalized: string, options: SearchOptions): Promise<SearchResult<T>> {
         const { page = 1, limit = 20, filters = {} } = options;
-        const skip = (page - 1) * limit;
+        const skip = options.cursor ? 0 : (page - 1) * limit;
 
         try {
             const params: unknown[] = [normalized]; // $1 = search query (#6)
@@ -50,9 +50,16 @@ export class LiteStrategy {
                 paramIdx++;
             }
 
+            const idCol = SqlSanitizer.quoteIdentifier(this.config.idColumn || 'id', 'idColumn');
+            
+            if (options.cursor) {
+                whereClauses.push(`${idCol} > $${paramIdx}`);
+                params.push(options.cursor);
+                paramIdx++;
+            }
+
             const where = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
             const table = SqlSanitizer.quoteIdentifier(this.config.tableName, 'tableName');
-            const idCol = SqlSanitizer.quoteIdentifier(this.config.idColumn || 'id', 'idColumn');
 
             const sql = `
                 SELECT *, COUNT(*) OVER() as total_count 

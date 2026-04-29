@@ -153,10 +153,37 @@ ${searchCols.map((col: string) => `CREATE INDEX IF NOT EXISTS idx_${table}_${col
     }
 
     if (sql) {
-        console.log(pc.yellow('\n📝 Run this SQL in your database:'));
+        console.log(pc.yellow('\n📝 Generated SQL Setup:'));
         console.log(pc.dim('---------------------------------'));
         console.log(pc.white(sql.trim()));
         console.log(pc.dim('---------------------------------'));
+
+        const runDbPrompt = new Confirm({
+            name: 'run',
+            message: pc.bold(pc.magenta('🚀 Apply these migrations directly to your database now?')),
+            initial: false
+        });
+        const shouldRun = await runDbPrompt.run();
+
+        if (shouldRun) {
+            const dsnPrompt = new Input({
+                message: 'Enter PostgreSQL connection string',
+                initial: 'postgresql://postgres:postgres@localhost:5432/postgres'
+            });
+            const dsn = await dsnPrompt.run();
+            try {
+                const { Client } = require('pg');
+                const client = new Client({ connectionString: dsn });
+                console.log(pc.dim('Connecting to database...'));
+                await client.connect();
+                await client.query(sql.trim());
+                await client.end();
+                console.log(pc.green('✅ Migrations applied successfully!'));
+            } catch (err: any) {
+                console.error(pc.red(`✖ Failed to apply migrations: ${err.message}`));
+                console.log(pc.yellow('Please run the SQL manually or save it to a file.'));
+            }
+        }
     }
 
     let turboConfig = '';

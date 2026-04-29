@@ -12,7 +12,10 @@ A high-performance Search SDK for PostgreSQL that provides speed and relevance c
 - 🏆 **Ranking & Relevance**: Professional BM25-style ranking using `ts_rank_cd`.
 - 🤖 **Semantic Vector Search**: Integrated support for OpenAI and Google Gemini embeddings via `pgvector`.
 - 🛡️ **Enterprise Security (v1.1+)**: Parameterized queries, strict `SqlSanitizer` whitelist for identifiers, and injection-safe filter keys.
-- 🏥 **Reliability System (v1.1+)**: Built-in `health()` checks, OOM protections (`MAX_ROWS`), and automated exponential backoff for AI APIs.
+- 🏥 **Reliability System (v1.2+)**: Built-in `health()` checks, OOM protections (`MAX_ROWS`), **Redlock-style cache deduplication**, and **intelligent rate-limiting queues** (p-queue) for AI APIs.
+- ⏱️ **Zero-Freeze Networking (v1.2+)**: Native `AbortSignal` propagation combined with explicit **10s fetch timeouts** on all external providers.
+- ⏭️ **Keyset Pagination (v1.2+)**: High-performance `cursor`-based pagination support for massive result sets.
+- 🚀 **CLI Migration Suite (v1.2+)**: Automated interactive database setup and index migration tool.
 - 📊 **Built-in Benchmarking**: Real-time performance measurement tool included.
 
 ## 🚀 Performance (Elite Tier)
@@ -60,7 +63,17 @@ const engine = new TrigramSearchEngine(adapter, {
 const results = await engine.search({
   query: "prayrr", // Typo handled by Fuzzy fallback
   language: "ru", // Supports automatic layout correction
+  cursor: lastSeenId, // Optional keyset paging for v1.2+
 });
+```
+
+### 3. Integrated Migrations (v1.2)
+
+You can now apply indices directly through the CLI:
+
+```bash
+npm run init
+# Choose "Apply migrations directly to database"
 ```
 
 ## 🔋 Advanced Features
