@@ -12,10 +12,10 @@ export interface ApiCallOptions {
  * Shared wrapper for API calls that provides:
  * 1. Concurrency limiting (p-queue)
  * 2. Exponential backoff retry
- * 3. Max timeout execution
+ * 3. Max timeout execution with real AbortSignal support
  */
 export async function withApiReliability<T>(
-    fn: () => Promise<T>,
+    fn: (signal: AbortSignal) => Promise<T>,
     options: ApiCallOptions = {}
 ): Promise<T> {
     const {
@@ -29,22 +29,25 @@ export async function withApiReliability<T>(
         let lastError: unknown;
         
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), timeoutMs);
+
             try {
-                // Wrap in Promise.race for timeout
-                const timeoutPromise = new Promise<never>((_, reject) => {
-                    setTimeout(() => reject(new Error(`API call timed out after ${timeoutMs}ms`)), timeoutMs);
-                });
-                
-                return await Promise.race([
-                    fn(),
-                    timeoutPromise
-                ]);
+                return await fn(controller.signal);
             } catch (err: unknown) {
                 lastError = err;
+                
+                // If it was a timeout (aborted by our timer or external)
+                if (err instanceof Error && (err.name === 'AbortError' || err.message.includes('timeout'))) {
+                    lastError = new Error(`API call timed out after ${timeoutMs}ms`);
+                }
+
                 if (attempt < maxAttempts) {
                     const delay = baseDelayMs * Math.pow(2, attempt - 1);
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
+            } finally {
+                clearTimeout(timer);
             }
         }
         throw lastError;

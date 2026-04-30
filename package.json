@@ -1,6 +1,6 @@
 {
   "name": "pg-smart-search",
-  "version": "1.2.1",
+  "version": "1.3.0",
   "description": "High-performance fuzzy search SDK for PostgreSQL with Parallel Search and Zombie Query Prevention",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,6 +19,7 @@
     "test": "npm run test:unit",
     "test:unit": "jest test/unit",
     "test:integration": "jest test/integration",
+    "test:e2e": "./scripts/test-e2e.sh",
     "example": "ts-node examples/basic-usage.ts",
     "init": "ts-node src/cli/init.ts",
     "bench": "ts-node src/cli/bench.ts"

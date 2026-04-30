@@ -36,14 +36,17 @@ export class OpenAIProvider implements VectorProvider {
      * @returns Array of floats representing the embedding vector
      */
     async generateEmbedding(text: string): Promise<number[]> {
-        return withApiReliability(async () => {
+        return withApiReliability(async (signal) => {
             const response = await fetch('https://api.openai.com/v1/embeddings', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${this.apiKey}`,
+                    'X-SDK-Version': '1.2.1',
+                    'User-Agent': 'pg-smart-search/1.2.1'
                 },
                 body: JSON.stringify({ input: text, model: this.model }),
+                signal,
             });
 
             if (!response.ok) {

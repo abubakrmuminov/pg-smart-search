@@ -43,12 +43,12 @@ describe('QueryProcessor', () => {
             expect(QueryProcessor.transliterate('рамадан')).toBe('ramadan');
         });
 
-        it('handles hard and soft signs (ъ and ь) as empty', () => {
-            expect(QueryProcessor.transliterate('объект')).toBe('obekt');
+        it('handles hard and soft signs (ъ and ь) according to ISO 9', () => {
+            expect(QueryProcessor.transliterate('объект')).toBe('obʺekt');
         });
 
-        it('handles ё', () => {
-            expect(QueryProcessor.transliterate('ёж')).toBe('yozh');
+        it('handles ё and ж', () => {
+            expect(QueryProcessor.transliterate('ёж')).toBe('ëž');
         });
     });
 

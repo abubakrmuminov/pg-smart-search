@@ -36,13 +36,17 @@ export class GeminiProvider implements VectorProvider {
      * @returns Array of floats representing the embedding vector
      */
     async generateEmbedding(text: string): Promise<number[]> {
-        return withApiReliability(async () => {
+        return withApiReliability(async (signal) => {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:embedContent?key=${this.apiKey}`;
 
             const response = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'X-SDK-Version': '1.2.1'
+                },
                 body: JSON.stringify({ content: { parts: [{ text }] } }),
+                signal,
             });
 
             if (!response.ok) {

@@ -1,3 +1,5 @@
+import { TransliterationUtils } from './transliteration-utils';
+
 export class QueryProcessor {
     /**
      * Normalize query: lowercase, trim, remove redundant punctuation
@@ -24,18 +26,11 @@ export class QueryProcessor {
     }
 
     /**
-     * Transliterate Cyrillic characters to their Latin equivalents.
+     * Transliterate Cyrillic characters to their Latin equivalents using ISO 9:1995.
      * Useful for cross-language matching (e.g. searching "рамадан" against "ramadan")
      */
     static transliterate(text: string): string {
-        const map: Record<string, string> = {
-            'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo',
-            'ж':'zh','з':'z','и':'i','й':'y','к':'k','л':'l','м':'m',
-            'н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u',
-            'ф':'f','х':'h','ц':'ts','ч':'ch','ш':'sh','щ':'shch',
-            'ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya',
-        };
-        return text.toLowerCase().split('').map(ch => map[ch] ?? ch).join('');
+        return TransliterationUtils.transliterate(text);
     }
 
     /**

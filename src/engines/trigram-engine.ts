@@ -8,6 +8,7 @@ import { VectorStrategy } from '../strategies/vector-strategy';
 import { FTSStrategy } from '../strategies/fts-strategy';
 import { VectorProvider } from '../providers/vector-provider';
 import { CacheProvider } from '../providers/cache-provider';
+import { MetricsCollector } from '../core/metrics-collector';
 
 export { SqlInjectionError };
 
@@ -80,6 +81,7 @@ const MAX_ROWS = 10_000;
 
 export class TrigramSearchEngine {
     private inFlightRequests = new Map<string, Promise<SearchResult<any>>>();
+    public readonly metrics = new MetricsCollector();
 
     constructor(
         private adapter: DatabaseAdapter,
@@ -148,9 +150,11 @@ export class TrigramSearchEngine {
             try {
                 const cached = await this.config.cacheProvider.get<SearchResult<T>>(cacheKey);
                 if (cached) {
+                    this.metrics.recordCacheHit();
                     this.config.logger?.info('cache hit', { cacheKey, tier: this.config.tier });
                     return cached;
                 }
+                this.metrics.recordCacheMiss();
             } catch (err) {
                 this.config.logger?.warn('cache get failed', { error: String(err) });
             }
@@ -180,12 +184,14 @@ export class TrigramSearchEngine {
                         strategyUsed = 'STANDARD+FTS';
                         results = await this.hybridSearch<T>(normalized, { ...options, page, limit }, language);
                     }
+                    this.metrics.recordSearch(strategyUsed);
                 } catch (err: unknown) {
                     const error = err as Error;
                     if (error.name === 'AbortError' || error.message === 'AbortError') {
                         return this.emptyResult(page, limit) as unknown as SearchResult<T>;
                     }
                     this.config.logger?.error('search failed', { error: String(err), tier: this.config.tier });
+                    this.metrics.recordProviderError();
                     throw err;
                 }
 
@@ -282,6 +288,18 @@ export class TrigramSearchEngine {
             }
         }
 
+        // ISO 9 Transliteration Fallback (RU context)
+        if (results.pagination.total === 0 && language === 'ru') {
+            const transliterated = QueryProcessor.transliterate(normalized);
+            if (transliterated !== normalized) {
+                const transResults = await this.fuzzySearch<T>(transliterated, options);
+                if (transResults.pagination.total > 0) {
+                    results = transResults;
+                    results.metadata = { ...results.metadata, transliteratedFrom: normalized };
+                }
+            }
+        }
+
         return results;
     }
 
@@ -333,7 +351,9 @@ export class TrigramSearchEngine {
             LIMIT ${limit} OFFSET ${skip}
         `;
 
+        const startDb = Date.now();
         const rows = await this.adapter.query<Record<string, unknown>>(sql, params as unknown[], { signal: options.abortSignal });
+        this.metrics.recordDbLatency(Date.now() - startDb);
         return this.mapRowsToResult<T>(rows, page, limit);
     }
 
@@ -410,7 +430,8 @@ export class TrigramSearchEngine {
         let idx = startIdx;
 
         for (const [key, val] of Object.entries(filters)) {
-            if (val === undefined || val === null || val === '') continue;
+            // We only skip undefined/null now. Empty string "" is a valid filter value in v1.3.0
+            if (val === undefined || val === null) continue;
 
             // Validate the column name to prevent injection via filter key (#19)
             SqlSanitizer.validateIdentifier(key, `filter key "${key}"`);
@@ -472,7 +493,9 @@ export class TrigramSearchEngine {
             healthy: true,
             database: 'ok',
             cache: this.config.cacheProvider ? 'ok' : 'disabled',
-            details: {},
+            details: {
+                metrics: this.metrics.getSummary()
+            },
         };
 
         // Check DB

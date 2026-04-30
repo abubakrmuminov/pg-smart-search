@@ -12,11 +12,12 @@ A high-performance Search SDK for PostgreSQL that provides speed and relevance c
 - 🏆 **Ranking & Relevance**: Professional BM25-style ranking using `ts_rank_cd`.
 - 🤖 **Semantic Vector Search**: Integrated support for OpenAI and Google Gemini embeddings via `pgvector`.
 - 🛡️ **Enterprise Security (v1.1+)**: Parameterized queries, strict `SqlSanitizer` whitelist for identifiers, and injection-safe filter keys.
-- 🏥 **Reliability System (v1.2+)**: Built-in `health()` checks, OOM protections (`MAX_ROWS`), **Redlock-style cache deduplication**, and **intelligent rate-limiting queues** (p-queue) for AI APIs.
-- ⏱️ **Zero-Freeze Networking (v1.2+)**: Native `AbortSignal` propagation combined with explicit **10s fetch timeouts** on all external providers.
+- 🏥 **Reliability System (v1.3+)**: Built-in `health()` checks, OOM protections (`MAX_ROWS`), **Redlock-style cache deduplication**, and **intelligent rate-limiting queues** (p-queue) for AI APIs.
+- ⏱️ **True Zero-Freeze Networking (v1.3+)**: Native `AbortController` propagation ensures timeouts (10s) actually kill underlying fetch requests.
+- 🛂 **ISO 9 Compliance (v1.3+)**: Standardized Cyrillic-to-Latin transliteration for cross-language search reliability.
 - ⏭️ **Keyset Pagination (v1.2+)**: High-performance `cursor`-based pagination support for massive result sets.
 - 🚀 **CLI Migration Suite (v1.2+)**: Automated interactive database setup and index migration tool.
-- 📊 **Built-in Benchmarking**: Real-time performance measurement tool included.
+- 📊 **Monitoring & Metrics (v1.3+)**: Real-time tracking of `cacheHitRate`, `dbLatency`, and `providerErrors` via `engine.metrics`.
 
 ## 🚀 Performance (Elite Tier)
 
