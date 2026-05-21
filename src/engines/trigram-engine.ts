@@ -225,12 +225,13 @@ export class TrigramSearchEngine {
             
             // Store the inflight promise and remove it when it finishes
             this.inFlightRequests.set(cacheKey, promise);
-            promise.catch(() => {}).finally(() => {
-                // Remove only if it's the same promise instance (prevents deleting new concurrent identical queries)
+            
+            // v1.3.0: Ensure removal happens immediately after resolution to unblock sequential identical queries
+            promise.finally(() => {
                 if (this.inFlightRequests.get(cacheKey) === promise) {
                     this.inFlightRequests.delete(cacheKey);
                 }
-            });
+            }).catch(() => {});
         }
 
         return promise as unknown as Promise<SearchResult<T>>;
@@ -250,23 +251,32 @@ export class TrigramSearchEngine {
         const internalController = new AbortController();
         const signal = options.abortSignal || internalController.signal;
 
+        // Start both in parallel
         const ftsPromise = new FTSStrategy(this.adapter, this.config)
             .search<T>(normalized, { ...options, abortSignal: signal });
         const standardPromise = this.standardSearch<T>(normalized, { ...options, abortSignal: signal });
 
         let results: SearchResult<T>;
 
-        results = await ftsPromise;
+        try {
+            results = await ftsPromise;
 
-        if (results.pagination.total > 0) {
-            // FTS won — abort standard search (Zombie Prevention)
-            internalController.abort();
-            standardPromise.catch(() => {});
-            return results;
+            if (results.pagination.total > 0) {
+                // FTS won — abort standard search to save resources
+                internalController.abort();
+                // We don't await standardPromise here but we catch its error to avoid unhandled rejections
+                standardPromise.catch(() => {});
+                return results;
+            }
+
+            // FTS found nothing — wait for already-running standard search
+            results = await standardPromise;
+        } catch (err) {
+            // If FTS fails, we still might want results from standard search
+            // But if it's an AbortError, let it bubble
+            if ((err as Error).name === 'AbortError') throw err;
+            results = await standardPromise;
         }
-
-        // FTS found nothing — wait for already-running standard search
-        results = await standardPromise;
 
         // Fuzzy Fallback
         if (results.pagination.total === 0) {

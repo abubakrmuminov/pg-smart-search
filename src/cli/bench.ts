@@ -8,8 +8,7 @@ import { MemoryCacheProvider } from '../providers/cache-provider';
 // Mock Adapter with "Elite" performance behavior
 class MockBenchAdapter implements DatabaseAdapter {
     async query(sql: string, params?: any[], options?: { signal?: AbortSignal }): Promise<any[]> {
-        // Elite PG with indices: 3-6ms for lookups
-        // Cold/Full Scan: 15-25ms
+        // Real-world DB delays (simulated)
         const isIndexed = sql.includes('search_vector') || sql.includes('idx_');
         const delay = isIndexed ? (Math.random() * 3 + 3) : (Math.random() * 10 + 15);
         
